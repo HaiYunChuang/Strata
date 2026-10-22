@@ -175,7 +175,8 @@ Three things look promising upstream but were not confirmed on this machine. The
 first attempt to A/B the two switches below was invalidated rather than answered:
 the three engine restarts took 57 s, 70 s and 141 s to fill the expert cache, so
 the page cache was cooling between runs and the prompt-read numbers are not
-comparable. They need a re-run with the runs interleaved.
+comparable. They were re-run with the runs interleaved on engine 0.1.47; the
+results are in section 3.6.
 
 - `STRATA_PF_F16=1` (gfx11) — sends the covered prompt experts through the F16
   matrix cores instead of the int8 ones (`src/prefill/moe_f16_kq.cu`, on top of
@@ -190,6 +191,31 @@ comparable. They need a re-run with the runs interleaved.
   they are "Exact (bitwise) on Aurora" — tuned on Linux. `STRATA_SH_STREAM`
   already proved inverted on Windows (section 3.3), so the rest deserve the same
   back-to-back A/B; `STRATA_GFX1151_DEFAULTS=0` turns them all off at once.
+
+### 3.6 Measured A/B on Windows (engine 0.1.47)
+
+The three leads in section 3.5 were re-run after the 0.2.2 update: engine
+0.1.47, ROCm 10.2.0a20260930, Windows 11, Radeon 8060S, 128 GB, the run config
+in section 3 with `swift-abl-1.5-iq3_xxs` (IQ3_XXS), a 1,646-token prompt,
+temperature 0, one warm-up request, then three measured requests per engine
+start with a unique nonce. Each comparison was interleaved A/B/A/B/A/B and the
+table reports the median of the three starts.
+
+Only paired numbers are comparable. The same configuration's prefill moved from
+467 to 600 tok/s (+28%) over the session as the machine warmed up, so a
+before/after across hours means nothing here.
+
+| Compared | prefill tok/s | decode tok/s | Result |
+|---|---|---|---|
+| 18 gfx1151 defaults on (the default) | 570.0 | 56.1 | baseline |
+| `STRATA_GFX1151_DEFAULTS=0` (all off) | 534.5 (-6.2%) | 46.5 (-17%) | the defaults help on Windows too; keep them on |
+| `STRATA_REFILL_PARTS=1` | 561.8 (+1.0%) | 43.1 | below the 3% bar; left off |
+| `tools/hip/gfx1151-hipblaslt-100500.txt` | 594.5 | 45.8 | baseline |
+| the package's `tuning/gfx1151-hipblaslt-100500.txt` | 576.6 (-3.0%) | 43.9 (-4.1%) | the table shipped with this guide stays |
+
+Decode medians come from short completions (24-45 tokens) and are noisier than
+the prefill numbers. Not measured: needle or correctness checks, TTFT, and
+multi-turn agent workloads; the A/B above used IQ3_XXS, not IQ3_S.
 
 ## 4. Running it
 
